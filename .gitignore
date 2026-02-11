@@ -1,2 +1,31 @@
-*.pdf
+# Data files
+data/
 *.npy
+
+# Output figures
+figures/
+
+# PDF documents
+*.pdf
+
+# Docs (optional)
+docs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store

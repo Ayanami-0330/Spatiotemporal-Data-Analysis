@@ -1,0 +1,12 @@
+[project]
+name = "me5311-spatiotemporal-analysis"
+version = "0.1.0"
+description = "ME5311 Project 1 — Spatio-temporal vector field data analysis"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+]
+
+[project.scripts]
+analyze = "main:main"
