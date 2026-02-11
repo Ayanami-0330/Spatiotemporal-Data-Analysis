@@ -1,4 +1,10 @@
 """
+Author: Yu Huize (hayes_yu@163.com)
+Date: 2026-02-11
+Course: NUS ME5311 Project 1
+"""
+
+"""
 spectral_analysis.py — 傅里叶 / 功率谱分析
 ==========================================
 - 2D 空间 FFT + 时间平均 PSD

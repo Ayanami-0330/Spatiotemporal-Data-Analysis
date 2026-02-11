@@ -1,6 +1,6 @@
 [project]
 name = "spatiotemporal-data-analysis"
-version = "0.1.1"
+version = "0.1.2"
 description = "NUS ME5311 Project 1 — Spatio-temporal vector field data analysis"
 authors = [
     { name = "Yu Huize", email = "hayes_yu@163.com" },

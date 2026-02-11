@@ -1,4 +1,10 @@
 """
+Author: Yu Huize (hayes_yu@163.com)
+Date: 2026-02-11
+Course: NUS ME5311 Project 1
+"""
+
+"""
 data_loader.py — 数据加载与预处理
 =================================
 - 加载 vector_64.npy  →  shape (nt, ny, nx, 2)

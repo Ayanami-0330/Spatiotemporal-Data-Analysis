@@ -1,4 +1,10 @@
 """
+Author: Yu Huize (hayes_yu@163.com)
+Date: 2026-02-11
+Course: NUS ME5311 Project 1
+"""
+
+"""
 visualization.py — 统一可视化工具
 =================================
 为各分析模块提供绘图函数，统一配色、标注、导出。

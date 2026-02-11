@@ -1,4 +1,10 @@
 """
+Author: Yu Huize (hayes_yu@163.com)
+Date: 2026-02-11
+Course: NUS ME5311 Project 1
+"""
+
+"""
 main.py — ME5311 Project 1 主分析脚本
 =====================================
 串联所有分析模块，按步骤执行完整分析流水线。

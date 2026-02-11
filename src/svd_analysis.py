@@ -1,4 +1,10 @@
 """
+Author: Yu Huize (hayes_yu@163.com)
+Date: 2026-02-11
+Course: NUS ME5311 Project 1
+"""
+
+"""
 svd_analysis.py — SVD / PCA 模态分析
 ====================================
 - 经济 SVD 分解

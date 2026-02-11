@@ -1,4 +1,10 @@
 """
+Author: Yu Huize (hayes_yu@163.com)
+Date: 2026-02-11
+Course: NUS ME5311 Project 1
+"""
+
+"""
 symmetry_analysis.py — 对称性 & 各向异性诊断
 =============================================
 - 2D 傅里叶谱沿 kx / ky 轴切片对比
