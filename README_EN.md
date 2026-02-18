@@ -52,20 +52,60 @@ Spatiotemporal-Data-Analysis/
 - **Symmetry diagnostics**: mirror/rotational symmetry tests, anisotropy quantification
 - **Derived quantities**: vorticity ω, divergence ∇·u computation and analysis
 
+## Jupyter Notebooks
+
+Two interactive Jupyter notebooks are provided in the `notebooks/` directory for exploring the analysis step-by-step:
+
+### English Version
+- **File**: `notebooks/main_analysis_en.ipynb`
+- **Content**: Complete data-driven analysis workflow with detailed interpretations
+- **Sections**:
+  - Step 0: Data Loading & Preprocessing
+  - Step 1: SVD Analysis (Leading Spatial Structures)
+  - Step 2: Fourier Spectral Analysis (Energy Distribution & Periodicity)
+  - Step 3: Symmetry & Anisotropy Diagnosis
+  - Summary: Comprehensive analysis results for Q1–Q4
+
+### Chinese Version
+- **File**: `notebooks/main_analysis.ipynb`
+- **Content**: Same workflow as English version, with explanations in Chinese
+
+**Usage**: Open either notebook with Jupyter Lab/Notebook and run cells sequentially:
+```bash
+jupyter lab notebooks/main_analysis_en.ipynb
+```
+
+All generated figures are automatically saved to `figures/` and displayed inline.
+
 ## Dependencies
 
 - Python ≥ 3.10
 - `numpy` ≥ 1.24
 - `matplotlib` ≥ 3.7
+- `jupyter` (optional, for interactive notebook use)
 
 ## Install & Run
 
+### Basic Installation (Command Line)
+
 ```bash
-# Install dependencies
+# Install minimal dependencies
 pip install .
 
 # Run the full analysis pipeline
 python main.py
+```
+
+### Full Installation (With Jupyter Notebook Support)
+
+If you want to use the interactive Jupyter notebooks:
+
+```bash
+# Install with optional notebook dependencies
+pip install .[notebook]
+
+# Launch notebook
+jupyter lab notebooks/main_analysis_en.ipynb
 ```
 
 All figures are automatically saved to the `figures/` directory.
