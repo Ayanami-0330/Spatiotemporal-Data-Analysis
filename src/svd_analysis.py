@@ -1,16 +1,13 @@
 """
-Author: Yu Huize (hayes_yu@163.com)
-Date: 2026-02-11
-Course: NUS ME5311 Project 1
-"""
+Compact SVD/PCA utilities applied to the fluctuation field.
 
-"""
-svd_analysis.py — SVD / PCA 模态分析
-====================================
-- 经济 SVD 分解
-- 奇异值谱 & 累积能量
-- 空间模态提取与可视化
-- 时间系数提取 + 时间频谱分析
+Each snapshot of the velocity field is interpreted as a single point in
+a very high‑dimensional state space. By performing a truncated SVD of
+the data matrix we recover
+
+* the distribution of energy across modes (singular spectrum),
+* dominant spatial patterns (left singular vectors),
+* and associated temporal coefficients and their spectra.
 """
 
 import numpy as np
@@ -18,93 +15,167 @@ from . import data_loader as dl
 from . import visualization as viz
 
 
-def perform_svd(data_matrix: np.ndarray, full_matrices: bool = False):
+def compute_compact_svd(data_matrix: np.ndarray, full_matrices: bool = False):
     """
-    对数据矩阵 (N, T) 执行经济 SVD。
-    返回 U (N, K), sigma (K,), Vt (K, T)  其中 K = min(N, T)
+    Apply an economy‑size SVD to a data matrix of shape ``(N, T)``.
+
+    Returns
+    -------
+    U : ndarray, shape (N, K)
+    sigma : ndarray, shape (K,)
+    Vt : ndarray, shape (K, T)
+        with ``K = min(N, T)``.
     """
-    print("[svd] Computing economy SVD …")
+    print("[svd] start compact SVD factorisation")
     U, sigma, Vt = np.linalg.svd(data_matrix, full_matrices=full_matrices)
-    print(f"[svd] Done. U={U.shape}, sigma={sigma.shape}, Vt={Vt.shape}")
+    print(f"[svd] done: U={U.shape}, S={sigma.shape}, Vt={Vt.shape}")
     return U, sigma, Vt
 
 
-def energy_spectrum(sigma: np.ndarray):
+def modal_energy_summary(sigma: np.ndarray):
     """
-    计算模态能量谱。
-    返回:
-        energy       : σ_k² 
-        cum_energy   : 累积能量占比 (0~1)
-        n_95, n_99   : 累积能量达到 95% / 99% 所需模态数
+    Convert singular values into an energy spectrum and cumulative sum.
+
+    Returns
+    -------
+    energy : ndarray
+        Mode energy :math:`\\sigma_k^2`.
+    cum_energy : ndarray
+        Cumulative fraction of total energy.
+    n_95, n_99 : int
+        Number of leading modes required to capture 95% / 99% energy.
     """
-    energy = sigma ** 2
-    cum = np.cumsum(energy) / energy.sum()
-    n_95 = int(np.searchsorted(cum, 0.95)) + 1
-    n_99 = int(np.searchsorted(cum, 0.99)) + 1
-    print(f"[svd] Modes for 95% energy: {n_95},  99%: {n_99}")
-    return energy, cum, n_95, n_99
+    energy = sigma**2
+    cum_energy = np.cumsum(energy) / energy.sum()
+    n_95 = int(np.searchsorted(cum_energy, 0.95)) + 1
+    n_99 = int(np.searchsorted(cum_energy, 0.99)) + 1
+    print(f"[svd] modes for 95% energy: {n_95}, 99% energy: {n_99}")
+    return energy, cum_energy, n_95, n_99
 
 
-def extract_spatial_modes(U: np.ndarray, ny: int = dl.NY, nx: int = dl.NX,
-                          n_modes: int = 6):
+def extract_spatial_modes(
+    U: np.ndarray,
+    ny: int = dl.NY,
+    nx: int = dl.NX,
+    n_modes: int = 6,
+):
     """
-    提取前 n_modes 个空间模态，reshape 为 (ny, nx) 分量。
-    返回列表 [(ux_mode, uy_mode), ...]
+    Reshape the first ``n_modes`` columns of ``U`` into 2‑D fields.
+
+    Returns a list of ``(ux_mode, uy_mode)`` arrays, each of shape
+    ``(ny, nx)``.
     """
     half = ny * nx
-    modes = []
+    spatial_modes = []
     for i in range(n_modes):
-        ux = U[:half, i].reshape(ny, nx)
-        uy = U[half:, i].reshape(ny, nx)
-        modes.append((ux, uy))
-    return modes
+        ux_mode = U[:half, i].reshape(ny, nx)
+        uy_mode = U[half:, i].reshape(ny, nx)
+        spatial_modes.append((ux_mode, uy_mode))
+    return spatial_modes
 
 
-def temporal_coefficients(sigma: np.ndarray, Vt: np.ndarray,
-                          n_modes: int = 6):
-    """返回前 n_modes 个模态的时间系数 a_k(t) = σ_k * v_k(t)。"""
+def temporal_coefficients(
+    sigma: np.ndarray,
+    Vt: np.ndarray,
+    n_modes: int = 6,
+):
+    """Return ``a_k(t) = σ_k v_k(t)`` for the first ``n_modes``."""
     return [sigma[i] * Vt[i, :] for i in range(n_modes)]
 
 
-def temporal_coefficient_psd(sigma: np.ndarray, Vt: np.ndarray,
-                             dt: float = dl.DT, n_modes: int = 6):
+def temporal_coefficient_psd(
+    sigma: np.ndarray,
+    Vt: np.ndarray,
+    dt: float = dl.DT,
+    n_modes: int = 6,
+):
     """
-    对前 n_modes 个 SVD 时间系数做 FFT，返回 (freqs, [psd_1, …, psd_K])。
+    Compute one‑sided power spectral densities of SVD time coefficients.
+
+    Returns frequency grid and a list of PSD arrays.
     """
     nt = Vt.shape[1]
     freqs = np.fft.rfftfreq(nt, d=dt)
     psds = []
     for i in range(n_modes):
         coeff = sigma[i] * Vt[i, :]
-        fhat = np.fft.rfft(coeff)
-        psd = (np.abs(fhat) ** 2) / nt
+        fft_coeff = np.fft.rfft(coeff)
+        psd = (np.abs(fft_coeff) ** 2) / nt
         psds.append(psd)
     return freqs, psds
 
 
 # ── 顶层运行函数 ────────────────────────────────────────────
-def run(data_matrix: np.ndarray, dt: float = dl.DT,
-        ny: int = dl.NY, nx: int = dl.NX, n_modes: int = 6):
+def svd_workflow(
+    data_matrix: np.ndarray,
+    dt: float = dl.DT,
+    ny: int = dl.NY,
+    nx: int = dl.NX,
+    n_modes: int = 6,
+):
     """
-    完整 SVD 分析流水线：分解 → 能量谱 → 空间模态可视化
-    → 时间系数可视化 → 时间系数 PSD。
-    """
-    U, sigma, Vt = perform_svd(data_matrix)
+    High‑level SVD analysis workflow.
 
-    # 能量谱
-    energy, cum, n95, n99 = energy_spectrum(sigma)
+    Performs decomposition, energy accounting, and basic visualisation
+    of spatial modes and temporal behaviour.
+    """
+    U, sigma, Vt = compute_compact_svd(data_matrix)
+
+    # Energy distribution across modes.
+    energy, cum, n95, n99 = modal_energy_summary(sigma)
     viz.plot_singular_values(sigma, n_show=min(100, len(sigma)))
+    viz.plot_svd_reconstruction_error(
+        sigma,
+        n_show=min(100, len(sigma)),
+    )
+    viz.plot_mode_energy_bars(sigma, n_modes=min(10, len(sigma)))
 
-    # 空间模态
+    # Leading spatial patterns.
     viz.plot_spatial_modes(U, ny, nx, n_modes=n_modes)
 
-    # 时间系数
+    # Time‑domain view of modal amplitudes.
     viz.plot_temporal_coefficients(Vt, sigma, dt, n_modes=n_modes)
 
-    # 时间系数 PSD
-    freqs, psds = temporal_coefficient_psd(sigma, Vt, dt, n_modes=n_modes)
+    # Frequency‑domain view of modal amplitudes.
+    freqs, psds = temporal_coefficient_psd(
+        sigma,
+        Vt,
+        dt,
+        n_modes=n_modes,
+    )
     viz.plot_mode_temporal_psd(freqs, psds, n_modes=n_modes)
 
-    return dict(U=U, sigma=sigma, Vt=Vt,
-                energy=energy, cum_energy=cum,
-                n95=n95, n99=n99, freqs=freqs, psds=psds)
+    return dict(
+        U=U,
+        sigma=sigma,
+        Vt=Vt,
+        energy=energy,
+        cum_energy=cum,
+        n95=n95,
+        n99=n99,
+        freqs=freqs,
+        psds=psds,
+    )
+
+
+def run(
+    data_matrix: np.ndarray,
+    dt: float = dl.DT,
+    ny: int = dl.NY,
+    nx: int = dl.NX,
+    n_modes: int = 6,
+):
+    """
+    Backwards‑compatible wrapper for the SVD analysis.
+
+    This thin wrapper simply forwards to :func:`svd_workflow`. It is kept
+    to avoid breaking older notebooks/scripts that still import
+    ``svd_analysis.run``.
+    """
+    return svd_workflow(
+        data_matrix=data_matrix,
+        dt=dt,
+        ny=ny,
+        nx=nx,
+        n_modes=n_modes,
+    )

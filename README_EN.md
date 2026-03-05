@@ -1,111 +1,153 @@
-# ME5311 Project 1 — Spatio‑temporal Data Analysis
+# ME5311 Project 1 — Spatio‑temporal data analysis
 
 [![en](https://img.shields.io/badge/lang-English-blue.svg)](README_EN.md)
 [![cn](https://img.shields.io/badge/lang-中文-red.svg)](README.md)
 
-**Author**: Yu Huize
+**Author**: Tan Kailai (e1554333@u.nus.edu)  
+**Module**: NUS ME5311 — Data‑driven modelling and control
 
-This repository contains the analysis code for **NUS ME5311** course **Project 1**.
+This repository contains my **personal implementation** of the ME5311 Project 1
+analysis pipeline. The focus is on *learning from the given dataset itself*:
+no dynamical model is built and no prediction is attempted — everything is
+based on statistics and structures already present in the simulation output.
 
 ---
 
-## Overview
+## 1. Assignment context
 
-Data‑driven analysis of a large spatio‑temporal vector field dataset using **SVD/PCA**, **Fourier spectral analysis**, and **symmetry/anisotropy diagnostics**. The goal is to extract dominant spatial structures, energy distributions, and spatio‑temporal features directly from the data. No system dynamics modeling or prediction is performed (that is the scope of Project 2).
+The official brief for Project 1 asks us to use data‑driven tools to answer, at
+least qualitatively, the following questions:
 
-## Dataset
+1. **Q1 – Dominant spatial structures**  
+   What large‑scale patterns can be extracted from the field (e.g. via SVD)?
+2. **Q2 – Energy across spatial scales**  
+   How is variance/energy distributed over different wavenumbers?
+3. **Q3 – Evidence of external periodic forcing**  
+   Can a preferred forcing wavenumber be inferred directly from the spectrum?
+4. **Q4 – Symmetry and anisotropy**  
+   Do the spatial/temporal statistics reflect isotropy, or clear directional
+   preferences?
 
-| Property | Value |
-|----------|-------|
-| Shape | `(15000, 64, 64, 2)` |
-| Description | Two‑component vector field on a periodic 2D domain |
-| Time step | `Δt = 0.2` |
-| Total duration | `3000` simulation time units |
-| File | `data/vector_64.npy` |
+The code in this repository is organised explicitly around these questions.
 
-## Project Structure
+---
 
-```
+## 2. Dataset
+
+The project uses a single, relatively large, spatio‑temporal dataset:
+
+| Property      | Value                                  |
+|---------------|----------------------------------------|
+| Shape         | `(15000, 64, 64, 2)`                  |
+| Description   | Two‑component vector field on a 2‑D periodic domain |
+| Time step     | `Δt = 0.2`                            |
+| Total duration| `3000` simulation time units          |
+| File          | `data/vector_64.npy`                  |
+
+Each snapshot records both velocity components on a `64×64` Cartesian grid.  
+The raw array is the **only input** to all subsequent analysis.
+
+---
+
+## 3. Analysis workflow
+
+My workflow is split into four stages, which roughly parallel the lecture
+content:
+
+1. **Pre‑processing & basic statistics (Step 0)**  
+   - Load the vector field and separate it into mean flow and fluctuations.  
+   - Form vorticity and divergence fields.  
+   - Inspect representative snapshots and global kinetic‑energy time series.  
+   - Plot empirical PDFs of vorticity/divergence to gauge non‑Gaussianity.
+
+2. **Low‑rank SVD of the fluctuation field (Step 1)**  
+   - Compute an economy‑size SVD of the snapshot matrix.  
+   - Examine the singular spectrum, cumulative captured energy, and a
+     **reconstruction‑error curve** as a function of retained modes.  
+   - Visualise the leading spatial modes and their time coefficients.
+
+3. **Spectral characterisation in space and time (Step 2)**  
+   - Build 2‑D power spectra in wavenumber space and their radial averages.  
+   - Construct **compensated spectra** and **cumulative radial energy curves**
+     to highlight dominant length scales and potential power‑law ranges.  
+   - Compute spatially averaged temporal PSDs and locate energetic frequency
+     bands.
+
+4. **Symmetry and anisotropy diagnostics (Step 3)**  
+   - Compare spectral cuts along \(k_x\) and \(k_y\).  
+   - Quantify a **scale‑dependent anisotropy ratio** \(E_{kx}(k)/E_{ky}(k)\).  
+   - Evaluate simple mirror/rotation symmetry errors of the 2‑D spectrum.  
+   - Inspect symmetry properties of the leading SVD modes.
+
+A single composite figure, saved as `figures/report_composite_figure.pdf`,
+summarises key results for Q1–Q4 and is intended to be used directly in the
+written report.
+
+---
+
+## 4. Repository layout
+
+```text
 Spatiotemporal-Data-Analysis/
-├── data/                    # dataset (gitignored)
-├── docs/                    # project documents (gitignored)
-├── figures/                 # output figures (gitignored)
-├── notebooks/               # optional Jupyter notebooks
+├── data/                    # dataset (ignored in version control)
+├── figures/                 # all output figures
+├── notebooks/               # optional Jupyter notebooks (EN & CN)
 ├── src/                     # analysis modules
-│   ├── data_loader.py       #   data loading & preprocessing
-│   ├── svd_analysis.py      #   SVD/PCA modal analysis
-│   ├── spectral_analysis.py #   Fourier / power spectral analysis
-│   ├── symmetry_analysis.py #   symmetry & anisotropy diagnostics
-│   └── visualization.py     #   unified visualization utilities
-├── main.py                  # one‑click analysis pipeline
-├── pyproject.toml           # project dependencies
-├── .gitignore
-└── README.md
+│   ├── data_loader.py       #   data loading & basic diagnostics
+│   ├── svd_analysis.py      #   SVD/PCA analysis utilities
+│   ├── spectral_analysis.py #   spatial & temporal spectral tools
+│   ├── symmetry_analysis.py #   symmetry & anisotropy indicators
+│   └── visualization.py     #   centralised plotting helpers
+├── main.py                  # single entry point for the full workflow
+├── pyproject.toml           # dependencies & packaging metadata
+└── README*.md               # this file and the Chinese version
 ```
 
-## Features
+The scripts under `src/` are written to be reusable from both the command line
+and the notebooks.
 
-- **Mean‑field / fluctuation separation**: remove temporal mean to highlight dynamics
-- **SVD analysis**: singular value energy spectrum, dominant spatial modes, temporal coefficient PSD
-- **Spatial spectral analysis**: 2D FFT power spectrum, radial spectrum, peak wavenumber detection
-- **Temporal spectral analysis**: temporal PSD (spatially averaged), peak frequency detection
-- **Symmetry diagnostics**: mirror/rotational symmetry tests, anisotropy quantification
-- **Derived quantities**: vorticity ω, divergence ∇·u computation and analysis
+---
 
-## Jupyter Notebooks
+## 5. Notebooks
 
-Two interactive Jupyter notebooks are provided in the `notebooks/` directory for exploring the analysis step-by-step:
+Two interactive notebooks live in `notebooks/`:
 
-### English Version
-- **File**: `notebooks/main_analysis_en.ipynb`
-- **Content**: Complete data-driven analysis workflow with detailed interpretations
-- **Sections**:
-  - Step 0: Data Loading & Preprocessing
-  - Step 1: SVD Analysis (Leading Spatial Structures)
-  - Step 2: Fourier Spectral Analysis (Energy Distribution & Periodicity)
-  - Step 3: Symmetry & Anisotropy Diagnosis
-  - Summary: Comprehensive analysis results for Q1–Q4
+- `notebooks/main_analysis_en.ipynb` — English narrative of the full pipeline.  
+- `notebooks/main_analysis.ipynb` — Same code path, commentary in Chinese.
 
-### Chinese Version
-- **File**: `notebooks/main_analysis.ipynb`
-- **Content**: Same workflow as English version, with explanations in Chinese
+Both notebooks follow the four stages above and ultimately regenerate the
+composite figure used in the report. They are optional; all analysis can also
+be run from `main.py`.
 
-**Usage**: Open either notebook with Jupyter Lab/Notebook and run cells sequentially:
+To open the English notebook:
+
 ```bash
 jupyter lab notebooks/main_analysis_en.ipynb
 ```
 
-All generated figures are automatically saved to `figures/` and displayed inline.
+---
 
-## Dependencies
+## 6. Dependencies and usage
 
-- Python ≥ 3.10
-- `numpy` ≥ 1.24
-- `matplotlib` ≥ 3.7
-- `jupyter` (optional, for interactive notebook use)
+Minimal requirements:
 
-## Install & Run
+- Python ≥ 3.10  
+- `numpy` ≥ 1.24  
+- `matplotlib` ≥ 3.7  
+- `jupyter` (optional, for notebook use)
 
-### Basic Installation (Command Line)
+Install the package in editable mode and run the full pipeline:
 
 ```bash
-# Install minimal dependencies
 pip install .
-
-# Run the full analysis pipeline
 python main.py
 ```
 
-### Full Installation (With Jupyter Notebook Support)
-
-If you want to use the interactive Jupyter notebooks:
+For a notebook‑centric workflow:
 
 ```bash
-# Install with optional notebook dependencies
 pip install .[notebook]
-
-# Launch notebook
 jupyter lab notebooks/main_analysis_en.ipynb
 ```
 
-All figures are automatically saved to the `figures/` directory.
+All generated figures are written to the `figures/` directory.

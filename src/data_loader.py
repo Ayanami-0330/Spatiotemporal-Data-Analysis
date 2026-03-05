@@ -1,48 +1,79 @@
 """
-Author: Yu Huize (hayes_yu@163.com)
-Date: 2026-02-11
-Course: NUS ME5311 Project 1
-"""
+Dataset I/O and basic preprocessing utilities.
 
-"""
-data_loader.py — 数据加载与预处理
-=================================
-- 加载 vector_64.npy  →  shape (nt, ny, nx, 2)
-- 计算时间均值场  mean_field  →  (ny, nx, 2)
-- 计算波动场       fluctuation →  (nt, ny, nx, 2)
-- 构建数据矩阵   data_matrix  →  (N, T)  N=8192, T=15000
-- 计算衍生物理量：涡度 ω、散度 ∇·u（周期边界有限差分）
+This module provides a small set of helpers to
+
+* read the raw array ``vector_64.npy`` with shape ``(nt, ny, nx, 2)``,
+* form a time‑averaged velocity field,
+* construct the fluctuation field by subtracting the mean profile,
+* reshape the fluctuations into a 2‑D data matrix of size ``(N, T)``,
+* and derive scalar diagnostics such as vorticity and divergence
+  using finite differences under periodic boundary conditions.
+
+The main entry point is :func:`load_and_preprocess`, which bundles all
+of the above into a single dictionary of arrays.
 """
 
 from pathlib import Path
+from dataclasses import dataclass
+
 import numpy as np
 
-# ── 数据集参数 ──────────────────────────────────────────────
-NX, NY = 64, 64              # 空间网格分辨率
-NT     = 15000               # 时间快照数
-DT     = 0.2                 # 时间采样间隔（仿真时间单位）
-N_DOF  = NX * NY * 2         # 单快照自由度  8192
-T_TOTAL = NT * DT            # 总时长 3000
+
+# ── dataset meta information ─────────────────────────────────────────────
+@dataclass(frozen=True)
+class DatasetMeta:
+    """Light container for basic grid / time information."""
+
+    nx: int
+    ny: int
+    nt: int
+    dt: float
+
+    @property
+    def n_dof(self) -> int:
+        return self.nx * self.ny * 2
+
+    @property
+    def total_time(self) -> float:
+        return self.nt * self.dt
+
+
+# canonical meta object used throughout the project
+META = DatasetMeta(nx=64, ny=64, nt=15000, dt=0.2)
+
+# module‑level aliases retained for backward compatibility
+NX, NY = META.nx, META.ny
+NT = META.nt
+DT = META.dt
+N_DOF = META.n_dof
+T_TOTAL = META.total_time
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def load_raw(fname: str = "vector_64.npy") -> np.ndarray:
-    """加载原始数据 → (nt, ny, nx, 2)"""
+    """Load the raw 4‑D velocity array with shape ``(nt, ny, nx, 2)``."""
     data = np.load(DATA_DIR / fname)
     assert data.shape == (NT, NY, NX, 2), f"Unexpected shape {data.shape}"
-    print(f"[data_loader] Loaded {fname}  shape={data.shape}  "
-          f"dtype={data.dtype}  size={data.nbytes / 1e9:.2f} GB")
+    print(
+        f"[data] opened {fname}: "
+        f"shape={data.shape}, dtype={data.dtype}, "
+        f"size={data.nbytes / 1e9:.2f} GB"
+    )
     return data
 
 
 def compute_mean_field(data: np.ndarray) -> np.ndarray:
-    """时间平均场 ū(x,y) → (ny, nx, 2)"""
+    """Return the temporal mean velocity field ``ū(x, y)``."""
     return data.mean(axis=0)
 
 
-def compute_fluctuation(data: np.ndarray,
-                        mean_field: np.ndarray | None = None) -> np.ndarray:
-    """波动场 u' = u - ū → (nt, ny, nx, 2)"""
+def compute_fluctuation(
+    data: np.ndarray,
+    mean_field: np.ndarray | None = None,
+) -> np.ndarray:
+    """Compute the fluctuation field ``u' = u − ū``."""
     if mean_field is None:
         mean_field = compute_mean_field(data)
     return data - mean_field[np.newaxis, ...]
@@ -50,74 +81,87 @@ def compute_fluctuation(data: np.ndarray,
 
 def build_data_matrix(field: np.ndarray) -> np.ndarray:
     """
-    将 4-D 场 (nt, ny, nx, 2) 展平为 2-D 数据矩阵 (N, T)。
-    每列 = 一个时间快照的 8192 维向量。
-    展平顺序：先 ux 全部 ny×nx，再 uy 全部 ny×nx。
+    Stack all snapshots into a two‑dimensional data matrix of shape
+    ``(N, T)``, where each column corresponds to one time instant.
+
+    The ordering is ``[u_x (all grid points), u_y (all grid points)]``.
     """
-    nt = field.shape[0]
+    n_snapshots = field.shape[0]
     # (nt, ny, nx, 2) → (nt, 2, ny, nx) → (nt, 2*ny*nx)
-    mat = field.transpose(0, 3, 1, 2).reshape(nt, -1)  # (T, N)
-    return mat.T  # (N, T)
+    flat = field.transpose(0, 3, 1, 2).reshape(n_snapshots, -1)  # (T, N)
+    return flat.T  # (N, T)
 
 
-# ── 衍生物理量（周期边界有限差分） ──────────────────────────
-def _periodic_diff(arr: np.ndarray, axis: int, dx: float = 1.0) -> np.ndarray:
-    """中心差分（周期边界），axis 指定对哪个轴差分。"""
-    return (np.roll(arr, -1, axis=axis) - np.roll(arr, 1, axis=axis)) / (2.0 * dx)
+# ── derived scalar fields (periodic finite differences) ─────────────────
+def _central_diff_periodic(
+    arr: np.ndarray,
+    axis: int,
+    dx: float = 1.0,
+) -> np.ndarray:
+    """Second‑order central difference with periodic boundary conditions."""
+    forward = np.roll(arr, -1, axis=axis)
+    backward = np.roll(arr, 1, axis=axis)
+    return (forward - backward) / (2.0 * dx)
 
 
 def compute_vorticity(data: np.ndarray, L: float | None = None) -> np.ndarray:
     """
-    涡度  ω = ∂u_y/∂x - ∂u_x/∂y  → (nt, ny, nx)
-    data: (nt, ny, nx, 2)  分量顺序 [ux, uy]
-    L: 域尺寸，用于计算 dx = L/NX（若未给定则取 dx=1）
+    Compute the vorticity field
+    :math:`\\omega = \\partial_x u_y - \\partial_y u_x` with shape
+    ``(nt, ny, nx)`` from a velocity array of shape ``(nt, ny, nx, 2)``.
     """
     dx = (L / NX) if L is not None else 1.0
     dy = (L / NY) if L is not None else 1.0
     ux = data[..., 0]  # (nt, ny, nx)
     uy = data[..., 1]
-    # ∂u_y/∂x  — x 方向对应 axis=2
-    duy_dx = _periodic_diff(uy, axis=2, dx=dx)
-    # ∂u_x/∂y  — y 方向对应 axis=1
-    dux_dy = _periodic_diff(ux, axis=1, dx=dy)
-    return duy_dx - dux_dy
+    d_uy_dx = _central_diff_periodic(uy, axis=2, dx=dx)
+    d_ux_dy = _central_diff_periodic(ux, axis=1, dx=dy)
+    return d_uy_dx - d_ux_dy
 
 
 def compute_divergence(data: np.ndarray, L: float | None = None) -> np.ndarray:
     """
-    散度  ∇·u = ∂u_x/∂x + ∂u_y/∂y  → (nt, ny, nx)
+    Compute the divergence
+    :math:`\\nabla\\cdot u = \\partial_x u_x + \\partial_y u_y`.
     """
     dx = (L / NX) if L is not None else 1.0
     dy = (L / NY) if L is not None else 1.0
     ux = data[..., 0]
     uy = data[..., 1]
-    dux_dx = _periodic_diff(ux, axis=2, dx=dx)
-    duy_dy = _periodic_diff(uy, axis=1, dx=dy)
-    return dux_dx + duy_dy
+    d_ux_dx = _central_diff_periodic(ux, axis=2, dx=dx)
+    d_uy_dy = _central_diff_periodic(uy, axis=1, dx=dy)
+    return d_ux_dx + d_uy_dy
 
 
-# ── 快捷入口 ────────────────────────────────────────────────
+# ── high‑level convenience wrapper ──────────────────────────────────────
 def load_and_preprocess(fname: str = "vector_64.npy"):
     """
-    一步完成加载 + 均值/波动分离 + 矩阵构建。
-    返回 dict:
-        raw        : (nt, ny, nx, 2)
-        mean_field : (ny, nx, 2)
-        fluctuation: (nt, ny, nx, 2)
-        data_matrix: (N, T)   基于波动场
-        vorticity  : (nt, ny, nx)
-        divergence : (nt, ny, nx)
+    Load the dataset and construct a dictionary with the most commonly
+    used derived quantities for the later analysis stages.
+
+    The returned mapping contains:
+
+    * ``raw``        – original velocity snapshots, ``(nt, ny, nx, 2)``,
+    * ``mean_field`` – time‑averaged velocity field, ``(ny, nx, 2)``,
+    * ``fluctuation`` – deviation from the mean, ``(nt, ny, nx, 2)``,
+    * ``data_matrix`` – flattened fluctuation matrix, ``(N, T)``,
+    * ``vorticity``  – scalar vorticity field, ``(nt, ny, nx)``,
+    * ``divergence`` – scalar divergence field, ``(nt, ny, nx)``.
     """
     raw = load_raw(fname)
-    mf  = compute_mean_field(raw)
-    flu = compute_fluctuation(raw, mf)
-    mat = build_data_matrix(flu)
-    vor = compute_vorticity(raw)
-    div = compute_divergence(raw)
-    print(f"[data_loader] data_matrix shape = {mat.shape}")
-    print(f"[data_loader] vorticity   shape = {vor.shape}")
-    print(f"[data_loader] divergence  shape = {div.shape}")
+    mean_velocity = compute_mean_field(raw)
+    fluctuation = compute_fluctuation(raw, mean_velocity)
+    data_matrix = build_data_matrix(fluctuation)
+    vorticity = compute_vorticity(raw)
+    divergence = compute_divergence(raw)
+    print(f"[data] data_matrix: {data_matrix.shape}")
+    print(f"[data] vorticity field: {vorticity.shape}")
+    print(f"[data] divergence field: {divergence.shape}")
     return dict(
-        raw=raw, mean_field=mf, fluctuation=flu,
-        data_matrix=mat, vorticity=vor, divergence=div,
+        raw=raw,
+        mean_field=mean_velocity,
+        fluctuation=fluctuation,
+        data_matrix=data_matrix,
+        vorticity=vorticity,
+        divergence=divergence,
     )

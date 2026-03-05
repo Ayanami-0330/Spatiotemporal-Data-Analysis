@@ -3,7 +3,7 @@ name = "spatiotemporal-data-analysis"
 version = "0.1.3"
 description = "NUS ME5311 Project 1 — Spatio-temporal vector field data analysis"
 authors = [
-    { name = "Yu Huize", email = "hayes_yu@163.com" },
+    { name = "Tan Kailai", email = "e1554333@u.nus.edu" },
 ]
 license = { text = "MIT" }
 requires-python = ">=3.10"
